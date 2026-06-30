@@ -23,12 +23,12 @@ governed action, but this skill neither invokes it nor grants sending authority.
 
 ## Inputs
 
-- `inbound_reply` 鈥?JSON with a stable `reply_id`, sender (`from.address` or
+- `inbound_reply` — JSON with a stable `reply_id`, sender (`from.address` or
   `from`), body, and optional subject/timestamp.
-- `original_send_receipt` 鈥?the `runx.receipt.v1` produced by the original
+- `original_send_receipt` — the `runx.receipt.v1` produced by the original
   governed send. Suppression requires `status: sealed`, a checksum, a principal,
   a send plan, and an audience that matches the inbound sender.
-- `suppression_policy` 鈥?declared unsubscribe phrases and the suppression data
+- `suppression_policy` — declared unsubscribe phrases and the suppression data
   source. `data_source_ref` and `resource` may be supplied; conservative defaults
   are used otherwise.
 
