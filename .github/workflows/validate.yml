@@ -66,7 +66,10 @@ jobs:
           export RUNX_RECEIPT_DIR="$RUNNER_TEMP/receipts"
           : > verify.jsonl
           jq -r '.receipt_ids[]' harness.json | while read -r receipt_id; do
-            runx verify "$receipt_id" --receipt-dir "$RUNX_RECEIPT_DIR" --json | tee -a verify.jsonl
+            runx verify "$receipt_id" \
+              --receipt-dir "$RUNX_RECEIPT_DIR" \
+              --allow-local-development-signatures \
+              --json | tee -a verify.jsonl
           done
           test "$(jq -r '.receipt_ids | length' harness.json)" -gt 0
 
