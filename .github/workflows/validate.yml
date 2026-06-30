@@ -1,0 +1,81 @@
+name: validate reply-router
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RUNX_RECEIPT_SIGN_KID: reply-router-ci-key
+      RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64: QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=
+      RUNX_RECEIPT_SIGN_ISSUER_TYPE: ci
+    steps:
+      - name: Check out reply-router
+        uses: actions/checkout@v4
+
+      - name: Check out pinned RunX data-store source
+        uses: actions/checkout@v4
+        with:
+          repository: runxhq/runx
+          ref: 17b6e9156881766e91ac725604fe9fb40555816d
+          path: .upstream-runx
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3 jq
+          npm install --global @runxhq/cli@0.6.14
+          runx --version
+
+      - name: Seed pinned local registry dependency
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/registry" "$RUNNER_TEMP/receipts"
+          export RUNX_RECEIPT_DIR="$RUNNER_TEMP/receipts"
+          runx registry publish .upstream-runx/skills/data-store/SKILL.md \
+            --registry "$RUNNER_TEMP/registry" \
+            --owner runx \
+            --version 0.1.2 \
+            --json | tee data-store-publish.json
+
+      - name: Run required reply-router harness cases
+        run: |
+          set -o pipefail
+          export RUNX_REGISTRY_DIR="$RUNNER_TEMP/registry"
+          export RUNX_RECEIPT_DIR="$RUNNER_TEMP/receipts"
+          runx harness . --json | tee harness.json
+          jq -e '.status == "passed"' harness.json
+          jq -e '.case_names | index("sealed_unsubscribe_suppression") != null' harness.json
+          jq -e '.case_names | index("stop_ambiguous_or_unsealed") != null' harness.json
+
+      - name: Verify every emitted receipt
+        run: |
+          set -o pipefail
+          export RUNX_RECEIPT_DIR="$RUNNER_TEMP/receipts"
+          : > verify.jsonl
+          jq -r '.receipt_ids[]' harness.json | while read -r receipt_id; do
+            runx verify "$receipt_id" --receipt-dir "$RUNX_RECEIPT_DIR" --json | tee -a verify.jsonl
+          done
+          test "$(jq -r '.receipt_ids | length' harness.json)" -gt 0
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reply-router-validation
+          path: |
+            data-store-publish.json
+            harness.json
+            verify.jsonl
